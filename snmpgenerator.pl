@@ -1,29 +1,13 @@
 #!/usr/bin/perl
-# $Log: snmptest.pl,v $
-# Revision 1.9  2007/07/26 12:40:45  mpluhar
-# Drop-down for snmpname-index
+# $Log: snmpgenerator.pl,v $
+# Revision 1.2  2009/01/20 04:53:17  mpluhar
+# - Add new options -o and -d
+# - -d specify directory containing MIB files for parsing
+# - -o specify pluginname
+# - if pluginname specified the plugin name tag is setup with it
 #
-# Revision 1.8  2007/07/19 12:39:40  mpluhar
-# - index für sequencen wird in service geschrieben
-# - code Optimierung ;-)
-# - XML-Struktur an Vorgabetemplate angepasst
-#
-# Revision 1.7  2007/07/18 14:44:54  mpluhar
-# - mib-Dateien werden über Kommandozeile uebergeben
-# - moduleID wird aus mib-Dateien ausgelesen
-#
-# Revision 1.6  2007/07/17 20:10:27  mpluhar
-# multiple mib-files parsable
-#
-# Revision 1.5  2007/07/16 16:01:01  mpluhar
-# - Flache Hierachie und Schreiben in XML funktioniert
-#
-# Revision 1.4  2007/07/16 13:56:33  mpluhar
-# Sequenzen werden beruecksichtigt
-# .
-#
-# Revision 1.3  2007/07/12 20:23:50  mpluhar
-# Variable hinzugefuegt.
+# Revision 1.1  2009/01/20 01:53:21  mpluhar
+# Initial revision
 #
 
 # libperl snmp datatypes:
@@ -40,6 +24,25 @@
 # OPAQUE => perl scalar containing octets,
 # NULL,  => perl scalar containing nothing,
 
+use SNMP;
+use IO;
+use Getopt::Std;
+use List::Util qw(first);
+use DirHandle;
+use File::Type;
+use XML::Writer;
+
+
+%options=();
+getopts("o:d:",\%options);
+
+print "-o $options{o}\n" if defined $options{o};
+print "-d $options{d}\n" if defined $options{f};
+
+# Getopt has his options and now we take the rest
+@mibfiles = @ARGV; 
+
+# only the following snmp datatypes are supported and being parsed
 @snmpdata=("COUNTER","GAUGE","TICKS","INTEGER","UINTEGER","DisplayString");
 $hqunits = {"COUNTER"=> trendsup,
 	    "COUNTER64" =>trendsup,
@@ -51,14 +54,24 @@ $hqunits = {"COUNTER"=> trendsup,
 %hqcolltype =();
 
 
-use SNMP;
-use IO;
-my $output = new IO::File(">hq-plugin.xml");
 
-use XML::Writer;
-my $writer = new XML::Writer( OUTPUT => $output, DATA_MODE => 1, DATA_INDENT => 2);
+# write the plugin file
+sub writexmloutputfile
+{
+	if ($options{o})
+		{
+		our $output = new IO::File(">$options{o}-plugin.xml");
+		}
+		else
+		{
+		 $output = new IO::File(">hq-plugin.xml");
+		}
+}	
 
-use List::Util qw(first);
+&writexmloutputfile;
+
+our $writer = new XML::Writer( OUTPUT => $output, DATA_MODE => 1, DATA_INDENT => 2);
+
 
 $SNMP::save_descriptions = 1; # must be set prior to mib initialization
 $SNMP::auto_init_mib = 0;
@@ -67,25 +80,46 @@ $SNMP::debugging = 0;
 
 
 # add a directory with mibs to parse
-#&SNMP::addMibDirs('/home/mpluhar/src/mibs/4.4.1/');
+# &SNMP::addMibDirs('/home/mpluhar/src/mibs/4.4.1/');
 # this dir is added by default
 &SNMP::addMibDirs('/usr/share/snmp/mibs/');
 
 
-if ($#ARGV <= -1)
+# no MIB files and no directory with MIB files 
+if ($#ARGV <= -1 && !$options{d} )
     {
-	die "Syntax: $0 <mibfile1> <mibfile2> <mibfileN>\n";
+	die "Syntax: $0 -o pluginname -d mibdir (<mibfile1> <mibfile2> <mibfileN>)\n";
     }
-	
+
+sub readmibdirs 
+{   
+   my $dir = $options{d};
+   my $dh = DirHandle->new($dir)   or die "can't opendir $dir: $!";
+	  @mibfiles =  
+   	  sort                     # sort pathnames
+          grep {    -f     }       # choose only "plain" files
+          map  { "$dir/$_" }       # create full paths
+          grep {  !/^\./   }       # filter out dot files
+          $dh->read();             # read all entries
+
+} 
+
+# setup the mibfiles list if directory is given
+if ( $options{d} ) 
+{
+
+&readmibdirs;
+}
+
 #read and parse modules from mib-files
 sub readmibs
 {
     $k=0;
-    foreach $f (@ARGV)
+    foreach $f (@mibfiles)
      
     {
      open FILE,"<$f" or die "Can't open mibfile: $!";
-      
+     echo  
      &SNMP::addMibFiles($f);
     # get defition string from mibfile
      @defs  =  grep /DEFINITIONS ::= BEGIN/i, <FILE>;
@@ -244,7 +278,7 @@ print "Found $tabular tabular metrics\n";
 
 $writer->xmlDecl();
 #$writer->comment( 'Copyright Notice ' );
-$writer->startTag( 'plugin', 'name' => 'hqplugin');
+$writer->startTag( 'plugin', 'name' => $options{o});
 $writer->startTag( 'classpath',);
 $writer->emptyTag('include','name' => 'pdk/plugins/netdevice-plugin.jar');
 $writer->endTag();  
@@ -284,4 +318,3 @@ $writer->endTag(  );
 $writer->endTag(  );
 print "Done.\n";
 $writer->end(  );
-

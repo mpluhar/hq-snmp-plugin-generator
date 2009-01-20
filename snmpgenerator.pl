@@ -1,5 +1,8 @@
 #!/usr/bin/perl
 # $Log: snmpgenerator.pl,v $
+# Revision 1.3  2009/01/20 20:18:19  mpluhar
+# Add Availability metric for tabular services
+#
 # Revision 1.2  2009/01/20 04:53:17  mpluhar
 # - Add new options -o and -d
 # - -d specify directory containing MIB files for parsing
@@ -259,6 +262,16 @@ while (($k,$v) = each %SNMP::MIB) {
 					      'category' => "PERFORMANCE",
 					      'collectionType' => $hqunits->{$snmpchild->[$a]->{type}},
 					      'units'=> 'none', 'indicator' => 'false');
+			    # we use the first element for Availability metric
+			    if ($a == 0)
+			    {			    
+			    $availmetric = "Avail=true:".$snmpchild->[$a]->{label};
+			    $writer->emptyTag('metric', 'name' => 'Availability',
+					      'alias' => 'Availability',
+					      'template' => $availmetric,
+					      'indicator' => 'true');
+			    }
+
 			}
 		    }
 		}

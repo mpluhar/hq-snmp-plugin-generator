@@ -46,7 +46,7 @@ print "-d $options{d}\n" if defined $options{f};
 @mibfiles = @ARGV; 
 
 # only the following snmp datatypes are supported and being parsed
-@snmpdata=("COUNTER","GAUGE","TICKS","INTEGER","UINTEGER","DisplayString");
+@snmpdata=("COUNTER","GAUGE","TICKS","INTEGER","UINTEGER","DisplayString","GAUGE32");
 $hqunits = {"COUNTER"=> trendsup,
 	    "COUNTER64" =>trendsup,
 	       "GAUGE" => dynamic,
@@ -196,10 +196,15 @@ while (($k,$v) = each %SNMP::MIB) {
 	
 	$snmpchild = $v->{children};
 	    
-	# my @matches = grep $_ eq $snmpchild->[0]->{type},@snmpdata;
+	#my @matches = grep $_ eq $snmpchild->[0]->{type},@snmpdata;
 	#print "$#matches \n";
-	#think about this once again:
-	if (grep $_ eq $snmpchild->[0]->{type},@snmpdata) 
+	# this is sucks
+	# check the only two types
+	my $snmptype0 = "$snmpchild->[0]->{type}";
+	my $snmptype1 = "$snmpchild->[1]->{type}";
+	print "$snmptype0  $snmptype1";
+	#if (grep $_ eq $snmpchild->[0]->{type},@snmpdata) 
+	if (grep /$snmptype0|$snmptype1/i ,@snmpdata) 
 	{
 
 	    my @indexes = @{$SNMP::MIB{$k}{'indexes'}};
